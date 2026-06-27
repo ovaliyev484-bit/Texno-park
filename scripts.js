@@ -515,18 +515,151 @@ function loadCashierDashboard() {
   </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Bugun savdo yo\'q</td></tr>';
 }
 
+let managerTargets = JSON.parse(localStorage.getItem('tp_manager_targets') || 'null') || {
+    monthlyAmount: 200000000,
+    yearlyAmount: 2400000000,
+    monthlyQty: 80,
+    yearlyQty: 960
+};
+let employeePlans = JSON.parse(localStorage.getItem('tp_employee_plans') || 'null') || {};
+
+function getManagerTargets() {
+    return {
+        monthlyAmount: Number(managerTargets.monthlyAmount || 0),
+        yearlyAmount: Number(managerTargets.yearlyAmount || 0),
+        monthlyQty: Number(managerTargets.monthlyQty || 0),
+        yearlyQty: Number(managerTargets.yearlyQty || 0)
+    };
+}
+
+function saveManagerTargets() {
+    const targets = {
+        monthlyAmount: Number(document.getElementById('managerMonthlyTarget')?.value || 0),
+        yearlyAmount: Number(document.getElementById('managerYearlyTarget')?.value || 0),
+        monthlyQty: Number(document.getElementById('managerMonthlyQtyTarget')?.value || 0),
+        yearlyQty: Number(document.getElementById('managerYearlyQtyTarget')?.value || 0)
+    };
+    managerTargets = targets;
+    localStorage.setItem('tp_manager_targets', JSON.stringify(targets));
+    loadManagerDashboard();
+    showNotif('success', 'Reja saqlandi', 'Menejer rejalari yangilandi');
+}
+
+function getEmployeePlan(name) {
+    return employeePlans[name] || { amount: 0, qty: 0 };
+}
+
+function saveEmployeePlan(name, field, value) {
+    const safeName = name || 'unknown';
+    const current = getEmployeePlan(safeName);
+    current[field] = Number(value) || 0;
+    employeePlans[safeName] = current;
+    localStorage.setItem('tp_employee_plans', JSON.stringify(employeePlans));
+    loadManagerDashboard();
+}
+
+function populateManagerTargets() {
+    const targets = getManagerTargets();
+    const monthly = document.getElementById('managerMonthlyTarget');
+    const yearly = document.getElementById('managerYearlyTarget');
+    const monthlyQty = document.getElementById('managerMonthlyQtyTarget');
+    const yearlyQty = document.getElementById('managerYearlyQtyTarget');
+    if (monthly) monthly.value = targets.monthlyAmount;
+    if (yearly) yearly.value = targets.yearlyAmount;
+    if (monthlyQty) monthlyQty.value = targets.monthlyQty;
+    if (yearlyQty) yearlyQty.value = targets.yearlyQty;
+}
+
+function getSalesMetrics() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    const monthlySales = salesHistory.filter(s => {
+        const parts = String(s.date || '').split('.');
+        if (parts.length !== 3) return false;
+        return Number(parts[1]) === currentMonth && Number(parts[2]) === currentYear;
+    });
+    const yearlySales = salesHistory.filter(s => {
+        const parts = String(s.date || '').split('.');
+        if (parts.length !== 3) return false;
+        return Number(parts[2]) === currentYear;
+    });
+
+    const monthlyAmount = monthlySales.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+    const yearlyAmount = yearlySales.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+    const monthlyQty = monthlySales.reduce((sum, s) => sum + (s.items || []).reduce((q, i) => q + (Number(i.qty) || 0), 0), 0);
+    const yearlyQty = yearlySales.reduce((sum, s) => sum + (s.items || []).reduce((q, i) => q + (Number(i.qty) || 0), 0), 0);
+
+    return { monthlyAmount, yearlyAmount, monthlyQty, yearlyQty };
+}
+
 function loadManagerDashboard() {
+    populateManagerTargets();
+    const targets = getManagerTargets();
+    const metrics = getSalesMetrics();
+
+    const monthlyPct = targets.monthlyAmount > 0 ? Math.min(100, Math.round((metrics.monthlyAmount / targets.monthlyAmount) * 100)) : 0;
+    const yearlyPct = targets.yearlyAmount > 0 ? Math.min(100, Math.round((metrics.yearlyAmount / targets.yearlyAmount) * 100)) : 0;
+    const qtyPct = targets.monthlyQty > 0 ? Math.min(100, Math.round((metrics.monthlyQty / targets.monthlyQty) * 100)) : 0;
+
+    const monthlyDelta = metrics.monthlyAmount - targets.monthlyAmount;
+    const yearlyDelta = metrics.yearlyAmount - targets.yearlyAmount;
+    const qtyDelta = metrics.monthlyQty - targets.monthlyQty;
+
+    const monthlyStatusText = monthlyPct >= 100 ? '✅ Bajarildi' : monthlyPct >= 80 ? '⚠️ Qisman bajarildi' : '❌ Bajarilmadi';
+    const yearlyStatusText = yearlyPct >= 100 ? '✅ Bajarildi' : yearlyPct >= 70 ? '⚠️ Qisman bajarildi' : '❌ Bajarilmadi';
+    const qtyStatusText = qtyPct >= 100 ? '✅ Bajarildi' : qtyPct >= 80 ? '⚠️ Qisman bajarildi' : '❌ Bajarilmadi';
+
+    const monthlyColor = monthlyPct >= 100 ? 'var(--success)' : monthlyPct >= 80 ? 'var(--warning)' : 'var(--danger)';
+    const yearlyColor = yearlyPct >= 100 ? 'var(--success)' : yearlyPct >= 70 ? 'var(--warning)' : 'var(--danger)';
+    const qtyColor = qtyPct >= 100 ? 'var(--success)' : qtyPct >= 80 ? 'var(--warning)' : 'var(--danger)';
+
+    document.getElementById('managerMonthlyProgressValue').textContent = monthlyPct + '%';
+    document.getElementById('managerMonthlyProgressText').textContent = `${fmt(metrics.monthlyAmount)} so'm / ${fmt(targets.monthlyAmount)} so'm • ${monthlyDelta >= 0 ? '+' : ''}${fmt(monthlyDelta)} so'm`;
+    document.getElementById('managerMonthlyStatus').textContent = monthlyStatusText;
+    document.getElementById('managerMonthlyStatus').style.color = monthlyColor;
+
+    document.getElementById('managerYearlyProgressValue').textContent = yearlyPct + '%';
+    document.getElementById('managerYearlyProgressText').textContent = `${fmt(metrics.yearlyAmount)} so'm / ${fmt(targets.yearlyAmount)} so'm • ${yearlyDelta >= 0 ? '+' : ''}${fmt(yearlyDelta)} so'm`;
+    document.getElementById('managerYearlyStatus').textContent = yearlyStatusText;
+    document.getElementById('managerYearlyStatus').style.color = yearlyColor;
+
+    document.getElementById('managerQtyProgressValue').textContent = qtyPct + '%';
+    document.getElementById('managerQtyProgressText').textContent = `${metrics.monthlyQty} ta mahsulot / ${targets.monthlyQty} ta reja • ${qtyDelta >= 0 ? '+' : ''}${qtyDelta} ta`;
+    document.getElementById('managerQtyStatus').textContent = qtyStatusText;
+    document.getElementById('managerQtyStatus').style.color = qtyColor;
+
     const tbody = document.getElementById('manager-employees');
-    const empData = [
-        { name: 'Abdullayev Admin', sales: 89, total: 145000000, status: 'Aktiv' },
-        { name: 'Karimov Kassir', sales: 47, total: 52000000, status: 'Aktiv' },
-        { name: 'Toshmatov Menejer', sales: 0, total: 0, status: 'Aktiv' },
-    ];
-    tbody.innerHTML = empData.map((e, i) => `<tr>
-    <td><strong>${i + 1}</strong></td><td>${e.name}</td><td>${e.sales}</td>
-    <td>${fmt(e.total)} so'm</td>
-    <td><span class="badge badge-green">${e.status}</span></td>
-  </tr>`).join('');
+
+    tbody.innerHTML = employees.map((e, i) => {
+        const empSales = salesHistory.filter(s => s.cashier === e.name);
+        const empAmount = empSales.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+        const empQty = empSales.reduce((sum, s) => sum + (s.items || []).reduce((q, item) => q + (Number(item.qty) || 0), 0), 0);
+        const plan = getEmployeePlan(e.name);
+        const planAmount = Number(plan.amount || 0);
+        const planQty = Number(plan.qty || 0);
+        const fallbackAmount = targets.monthlyAmount > 0 ? targets.monthlyAmount / Math.max(1, employees.length) : 0;
+        const fallbackQty = targets.monthlyQty > 0 ? targets.monthlyQty / Math.max(1, employees.length) : 0;
+        const activePlanAmount = planAmount > 0 ? planAmount : fallbackAmount;
+        const activePlanQty = planQty > 0 ? planQty : fallbackQty;
+        const progress = activePlanAmount > 0 ? Math.min(100, Math.round((empAmount / activePlanAmount) * 100)) : 0;
+        const diffAmount = empAmount - activePlanAmount;
+        const diffQty = empQty - activePlanQty;
+        const status = progress >= 100 ? 'Bajarildi' : progress >= 80 ? 'Qisman' : 'Bajarilmadi';
+        return `<tr>
+          <td><strong>${i + 1}</strong></td>
+          <td>${escapeHTML(e.name)}</td>
+          <td><input type="number" class="form-control" value="${activePlanAmount}" onchange="saveEmployeePlan('${escapeHTML(e.name)}','amount',this.value)" style="width:120px;padding:7px 10px"></td>
+          <td><input type="number" class="form-control" value="${activePlanQty}" onchange="saveEmployeePlan('${escapeHTML(e.name)}','qty',this.value)" style="width:90px;padding:7px 10px"></td>
+          <td>${fmt(empAmount)} so'm • ${empQty} ta</td>
+          <td>${diffAmount >= 0 ? '+' : ''}${fmt(diffAmount)} so'm / ${diffQty >= 0 ? '+' : ''}${diffQty} ta</td>
+          <td>
+            <div style="margin-bottom:4px"><span class="badge ${progress >= 100 ? 'badge-green' : progress >= 80 ? 'badge-blue' : 'badge-warning'}">${progress}%</span></div>
+            <div><span class="badge ${status === 'Bajarildi' ? 'badge-green' : status === 'Qisman' ? 'badge-blue' : 'badge-warning'}">${status}</span></div>
+          </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Hali xodimlar ma\'lumotlari yo\'q</td></tr>';
 }
 
 // ============================================================
@@ -789,13 +922,46 @@ function changeQty(id, delta) {
     else updateCart();
 }
 
-function updateCart() {
+function getCartSummary() {
     const disc = Math.min(100, Math.max(0, parseFloat(document.getElementById('discountInput')?.value) || 0));
     const TAX_RATE = parseFloat(document.getElementById('taxRate')?.value || 12) / 100;
     const subtotal = cart.reduce((s, x) => s + x.price * x.qty, 0);
     const taxAmt = subtotal * TAX_RATE;
     const discAmt = subtotal * disc / 100;
-    const total = subtotal - discAmt; // tax is included in price (display only)
+    const total = Math.max(0, subtotal - discAmt);
+    return { subtotal, taxAmt, disc, discAmt, total };
+}
+
+function updatePaymentSummary() {
+    const summary = getCartSummary();
+    const cashRow = document.getElementById('cashPaymentRow');
+    const cashReceivedEl = document.getElementById('cashReceived');
+    const cashBalanceEl = document.getElementById('cashBalance');
+    if (!cashRow || !cashReceivedEl || !cashBalanceEl) return;
+
+    const isCash = payType === 'cash';
+    cashRow.style.display = isCash ? '' : 'none';
+    if (!isCash) {
+        cashBalanceEl.textContent = 'Qaytim: —';
+        cashBalanceEl.style.color = 'var(--warning)';
+        return;
+    }
+
+    const received = parseFloat(cashReceivedEl.value) || 0;
+    const change = Math.max(0, received - summary.total);
+    const remaining = Math.max(0, summary.total - received);
+    if (received >= summary.total) {
+        cashBalanceEl.textContent = `Qaytim: ${fmt(change)} so'm`;
+        cashBalanceEl.style.color = 'var(--success)';
+    } else {
+        cashBalanceEl.textContent = `Qoldiq: ${fmt(remaining)} so'm`;
+        cashBalanceEl.style.color = 'var(--warning)';
+    }
+}
+
+function updateCart() {
+    const summary = getCartSummary();
+    const { subtotal, taxAmt, discAmt, total } = summary;
 
     const cartCount = document.getElementById('cartCount');
     const cartSubtotal = document.getElementById('cartSubtotal');
@@ -842,6 +1008,7 @@ function updateCart() {
     // Animate newest item
     const items = container.querySelectorAll('.cart-item');
     if (items.length) items[items.length - 1].classList.add('cart-item-new');
+    updatePaymentSummary();
     // Update credit calculations if credit panel is visible
     try { updateCreditCalculations(); } catch (e) { }
 }
@@ -850,11 +1017,7 @@ function updateCart() {
 function updateCreditCalculations() {
     const panel = document.getElementById('creditPanel');
     if (!panel) return;
-    // Compute subtotal and discount similar to updateCart
-    const subtotal = cart.reduce((s, x) => s + x.price * x.qty, 0);
-    const disc = Math.min(100, Math.max(0, parseFloat(document.getElementById('discountInput')?.value) || 0));
-    const discAmt = subtotal * disc / 100;
-    const totalAfterDisc = Math.max(0, subtotal - discAmt);
+    const { total: totalAfterDisc } = getCartSummary();
 
     const downInput = document.getElementById('creditDown');
     const monthsSel = document.getElementById('creditMonths');
@@ -879,7 +1042,9 @@ function updateCreditCalculations() {
 function clearCart() {
     cart = [];
     const di = document.getElementById('discountInput');
+    const cashReceived = document.getElementById('cashReceived');
     if (di) di.value = '';
+    if (cashReceived) cashReceived.value = '';
     updateCart();
     showNotif('info', 'Savat tozalandi', 'Barcha mahsulotlar o\'chirildi');
 }
@@ -896,15 +1061,22 @@ function setPayType(t, el) {
     }
     // Recalculate credit values when switching
     try { updateCreditCalculations(); } catch (e) { }
+    updatePaymentSummary();
 }
 
 function checkout() {
     if (cart.length === 0) { playError(); showNotif('error', 'Savat bo\'sh!', 'Mahsulot qo\'shing'); return; }
-    const disc = parseFloat(document.getElementById('discountInput')?.value) || 0;
-    const subtotal = cart.reduce((s, x) => s + x.price * x.qty, 0);
-    const discAmt = subtotal * disc / 100;
-    const total = subtotal - discAmt;
+    const { subtotal, disc, discAmt, total } = getCartSummary();
     const payLabels = { cash: 'Naqd', card: 'Karta', transfer: 'O\'tkazma' };
+
+    if (payType === 'cash') {
+        const cashReceived = parseFloat(document.getElementById('cashReceived')?.value) || 0;
+        if (cashReceived < total) {
+            playError();
+            showNotif('error', 'Pul yetarli emas!', 'Kassaga kiritilgan pul miqdori to\'lovdan kichik');
+            return;
+        }
+    }
 
     // Get selected customer
     const custSel = document.getElementById('cartCustomer');
@@ -912,10 +1084,14 @@ function checkout() {
     const cust = customers.find(c => c.id === custId);
 
     const saleId = salesHistory.length + 1;
+    const cashReceived = payType === 'cash' ? (parseFloat(document.getElementById('cashReceived')?.value) || 0) : total;
+    const change = payType === 'cash' ? Math.max(0, cashReceived - total) : 0;
     const sale = {
         id: saleId, items: JSON.parse(JSON.stringify(cart)),
         subtotal, disc, discAmt, total,
         pay: payLabels[payType],
+        received: cashReceived,
+        change,
         time: new Date().toLocaleTimeString('uz-UZ'),
         date: new Date().toLocaleDateString('uz-UZ'),
         cashier: currentUser.name,
@@ -977,6 +1153,7 @@ function renderReceipt(sale) {
       ${sale.disc > 0 ? `<div class="r-row"><span>Chegirma (${sale.disc}%):</span><span>-${fmt(sale.discAmt)}</span></div>` : ''}
       <div class="r-row r-total"><span>TO'LOV:</span><span>${fmt(sale.total)} so'm</span></div>
       <div class="r-row"><span>To'lov turi:</span><span>${sale.pay}</span></div>
+      ${sale.pay === 'Naqd' ? `<div class="r-row"><span>Kiritilgan pul:</span><span>${fmt(sale.received)} so'm</span></div><div class="r-row"><span>Qaytim:</span><span>${fmt(sale.change)} so'm</span></div>` : ''}
       <div class="r-barcode">||| ${String(sale.id).padStart(8, '0')} |||</div>
       <hr>
       <div class="r-center">Rahmat xarid uchun! 🙏<br>⭐⭐⭐⭐⭐</div>

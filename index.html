@@ -359,17 +359,58 @@
           </div>
           <div class="panel">
             <div class="panel-header">
-              <h3><i class="fas fa-users" style="color:var(--accent)"></i> Xodimlar Reytingi</h3>
+              <h3><i class="fas fa-bullseye" style="color:var(--warning)"></i> Sotuv Rejasi va Nazorat</h3>
+              <button class="btn btn-outline btn-sm" onclick="saveManagerTargets()">Saqlash</button>
             </div>
-            <div class="panel-body" style="padding:0">
+            <div class="panel-body">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:16px">
+                <div style="padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.03)">
+                  <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Oylik reja (so'm)</label>
+                  <input id="managerMonthlyTarget" type="number" min="0" step="100000" class="form-control" placeholder="200000000">
+                </div>
+                <div style="padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.03)">
+                  <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Yillik reja (so'm)</label>
+                  <input id="managerYearlyTarget" type="number" min="0" step="100000" class="form-control" placeholder="2400000000">
+                </div>
+                <div style="padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.03)">
+                  <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Oylik reja (mahsulot)</label>
+                  <input id="managerMonthlyQtyTarget" type="number" min="0" step="1" class="form-control" placeholder="80">
+                </div>
+                <div style="padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.03)">
+                  <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Yillik reja (mahsulot)</label>
+                  <input id="managerYearlyQtyTarget" type="number" min="0" step="1" class="form-control" placeholder="960">
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px">
+                <div style="padding:14px;border-radius:12px;background:linear-gradient(135deg, rgba(249,115,22,.15), rgba(249,115,22,.05));border:1px solid rgba(249,115,22,.25)">
+                  <div style="font-size:12px;color:var(--muted);text-transform:uppercase;font-weight:700">Oylik reja holati</div>
+                  <div id="managerMonthlyProgressValue" style="font-size:24px;font-weight:800;color:var(--primary);margin-top:6px">0%</div>
+                  <div id="managerMonthlyProgressText" style="font-size:13px;color:var(--text-secondary);margin-top:6px">Reja belgilanishi kerak</div>
+                  <div id="managerMonthlyStatus" style="font-size:12px;font-weight:700;margin-top:8px;color:var(--warning)">Bajarilmagan</div>
+                </div>
+                <div style="padding:14px;border-radius:12px;background:linear-gradient(135deg, rgba(16,185,129,.15), rgba(16,185,129,.05));border:1px solid rgba(16,185,129,.25)">
+                  <div style="font-size:12px;color:var(--muted);text-transform:uppercase;font-weight:700">Yillik reja holati</div>
+                  <div id="managerYearlyProgressValue" style="font-size:24px;font-weight:800;color:var(--success);margin-top:6px">0%</div>
+                  <div id="managerYearlyProgressText" style="font-size:13px;color:var(--text-secondary);margin-top:6px">Reja belgilanishi kerak</div>
+                  <div id="managerYearlyStatus" style="font-size:12px;font-weight:700;margin-top:8px;color:var(--warning)">Bajarilmagan</div>
+                </div>
+                <div style="padding:14px;border-radius:12px;background:linear-gradient(135deg, rgba(59,130,246,.15), rgba(59,130,246,.05));border:1px solid rgba(59,130,246,.25)">
+                  <div style="font-size:12px;color:var(--muted);text-transform:uppercase;font-weight:700">Mahsulot reja holati</div>
+                  <div id="managerQtyProgressValue" style="font-size:24px;font-weight:800;color:var(--info);margin-top:6px">0%</div>
+                  <div id="managerQtyProgressText" style="font-size:13px;color:var(--text-secondary);margin-top:6px">Ma'lumotlar yo'q</div>
+                  <div id="managerQtyStatus" style="font-size:12px;font-weight:700;margin-top:8px;color:var(--warning)">Bajarilmagan</div>
+                </div>
+              </div>
               <div class="table-wrap">
                 <table>
                   <thead>
                     <tr>
                       <th>#</th>
                       <th>Xodim</th>
-                      <th>Sotuvlar</th>
-                      <th>Jami So'm</th>
+                      <th>Plan (so'm)</th>
+                      <th>Plan (ta)</th>
+                      <th>Hozirgi sotuv</th>
+                      <th>Farq</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -430,6 +471,11 @@
                 <select id="cartCustomer" class="form-control" style="flex:1.2">
                   <option value="">Mijoz tanlanmagan</option>
                 </select>
+              </div>
+              <div class="discount-row" id="cashPaymentRow" style="display:none;margin-top:8px">
+                <input type="number" id="cashReceived" class="form-control" placeholder="Kassaga kiritilgan pul"
+                  min="0" step="1000" oninput="updatePaymentSummary()">
+                <div id="cashBalance" style="flex:1.1;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--warning);min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:rgba(255,255,255,.03)">Qaytim: —</div>
               </div>
               <div class="pay-types">
                 <button class="pay-type active" onclick="setPayType('cash',this)"><i
@@ -565,7 +611,6 @@
             <div class="stat-label">Nofaol</div>
           </div>
         </div>
-
         <div class="grid-2" style="margin-bottom:20px">
           <div class="panel">
             <div class="panel-header">
